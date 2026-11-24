@@ -31,6 +31,32 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: .
+      - name: Wait for Pages artifact visibility
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifactName = "github-pages";
+            const maxAttempts = 10;
+
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+              const { data } = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.runId,
+                per_page: 100
+              });
+              const artifact = data.artifacts.find(item => item.name === artifactName && !item.expired);
+              if (artifact) {
+                core.info(`Found ${artifactName} artifact (ID ${artifact.id}).`);
+                return;
+              }
+              if (attempt < maxAttempts) {
+                core.info(`Artifact not visible yet; retrying (${attempt}/${maxAttempts - 1}).`);
+                await new Promise(resolve => setTimeout(resolve, 3000));
+              }
+            }
+
+            core.setFailed(`Artifact "${artifactName}" was not visible after ${maxAttempts} checks.`);
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
