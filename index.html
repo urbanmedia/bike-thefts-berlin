@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fahrraddiebstahl Hotspots Berlin</title>
+    <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+    <script src="vendor/leaflet/leaflet.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #f1f5f9;
+            color: #1e293b;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+        }
+        header {
+            height: 80px;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #0f172a;
+            color: #fff;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
+            position: relative;
+            z-index: 1000;
+        }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+            display: grid;
+            place-items: center;
+            border-radius: 12px;
+            background: #e11d48;
+            box-shadow: 0 8px 18px rgba(225, 29, 72, 0.28);
+        }
+        .brand-icon svg { width: 24px; height: 24px; fill: currentColor; }
+        h1 { margin: 0; font-size: 20px; line-height: 1.1; letter-spacing: -0.02em; }
+        .subtitle { margin-top: 5px; color: #94a3b8; font-size: 11px; }
+        .header-meta { display: flex; align-items: center; gap: 18px; color: #cbd5e1; font-size: 12px; }
+        .live-dot { width: 7px; height: 7px; display: inline-block; margin-right: 6px; border-radius: 50%; background: #34d399; }
+        main { height: calc(100% - 80px); display: grid; grid-template-columns: 320px minmax(0, 1fr); }
+        aside {
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            border-right: 1px solid #e2e8f0;
+            padding: 20px;
+            z-index: 500;
+        }
+        .section-label {
+            margin: 0 0 10px;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 22px; }
+        .stat-card { padding: 13px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+        .stat-card strong { display: block; margin-bottom: 4px; color: #0f172a; font-size: 20px; }
+        .stat-card span { color: #64748b; font-size: 10px; }
+        .filter-section { padding: 16px 0; border-top: 1px solid #e2e8f0; }
+        select {
+            width: 100%;
+            height: 40px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #fff;
+            color: #334155;
+            font: inherit;
+            font-size: 12px;
+            outline: none;
+        }
+        select { padding: 0 10px; }
+        .district-list { display: flex; flex-direction: column; gap: 3px; }
+        .district {
+            width: 100%;
+            height: 38px;
+            padding: 0 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: #475569;
+            font: inherit;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .district:hover, .district.active { background: #fff1f2; color: #be123c; }
+        .district-count {
+            min-width: 28px;
+            padding: 3px 6px;
+            border-radius: 10px;
+            background: #e2e8f0;
+            color: #64748b;
+            text-align: center;
+            font-size: 10px;
+        }
+        .district.active .district-count { background: #e11d48; color: #fff; }
+        #map { width: 100%; height: 100%; background: #dbe5df; }
+        .map-attribution {
+            margin-top: auto;
+            padding-top: 14px;
+            color: #475569;
+            font-size: 10px;
+        }
+        .map-attribution a { color: #475569; }
+        .leaflet-control-zoom { border: 0 !important; box-shadow: 0 3px 12px rgba(15,23,42,.15) !important; }
+        .leaflet-control-zoom a { color: #334155 !important; }
+        .custom-marker { background: transparent; border: 0; }
+        .marker-pin {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            border: 3px solid #fff;
+            border-radius: 50%;
+            background: #e11d48;
+            color: #fff;
+            box-shadow: 0 4px 10px rgba(15,23,42,.28);
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .marker-pin.medium { background: #f97316; }
+        .marker-pin.low { background: #eab308; }
+        .leaflet-popup-content-wrapper { border-radius: 10px; }
+        .popup-title { margin: 0 0 5px; font-size: 14px; }
+        .popup-value { color: #e11d48; font-size: 18px; font-weight: 700; }
+        .popup-label { color: #64748b; font-size: 11px; }
+        @media (max-width: 768px) {
+            body { overflow: auto; }
+            header { height: 68px; padding: 0 14px; }
+            .brand-icon { width: 38px; height: 38px; }
+            h1 { font-size: 15px; }
+            .subtitle { max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .header-meta { display: none; }
+            main { height: calc(100vh - 68px); grid-template-columns: 1fr; grid-template-rows: 46% 54%; }
+            aside { grid-row: 2; border-top: 1px solid #e2e8f0; border-right: 0; padding: 12px 14px; }
+            #map { grid-row: 1; }
+            .stat-grid { grid-template-columns: repeat(2, 1fr); margin-bottom: 10px; }
+            .filter-section { padding: 10px 0; }
+            .district-list { display: grid; grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="brand">
+            <div class="brand-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                    <path d="M5.5 18a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0-9A5.5 5.5 0 1 0 11 14.5H9.95A4.5 4.5 0 1 1 5.5 10H5.5Zm13 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0-9a5.5 5.5 0 1 0 5.5 5.5h-1.05A4.5 4.5 0 1 1 18.5 10H18.5ZM9.6 13.7 12.8 8H9V6h5.8l-1.1 2h2.7l2 3.7-1.75.95-1.45-2.7-2.75 4.75H9.6v-1Z"/>
+                </svg>
+            </div>
+            <div>
+                <h1>Fahrraddiebstahl Hotspots Berlin</h1>
+                <div class="subtitle">Interaktive Karte der gemeldeten Diebstähle nach Bezirken &amp; Orten</div>
+            </div>
+        </div>
+        <div class="header-meta">
+            <span><i class="live-dot"></i>Aktualisiert: Nov 2026</span>
+            <span><span aria-hidden="true" style="margin-right:6px;color:#fb7185">●</span>Berlin</span>
+        </div>
+    </header>
+    <main>
+        <aside>
+            <p class="section-label">Auswertung</p>
+            <div class="stat-grid">
+                <div class="stat-card"><strong id="totalCount">12.486</strong><span>gemeldete Fälle</span></div>
+                <div class="stat-card"><strong id="districtCount">12</strong><span>Bezirke</span></div>
+            </div>
+            <div class="filter-section">
+                <p class="section-label">Zeitraum</p>
+                <select id="periodFilter">
+                    <option value="all">Letzte 12 Monate</option>
+                    <option value="year">Jahr 2026</option>
+                    <option value="quarter">Letzte 3 Monate</option>
+                </select>
+            </div>
+            <div class="filter-section">
+                <p class="section-label">Bezirke</p>
+                <div class="district-list" id="districtList"></div>
+            </div>
+            <div class="map-attribution">
+                Kartendaten &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a>
+            </div>
+        </aside>
+        <div id="map"></div>
+    </main>
+
+    <script>
+        const hotspots = [
+            { district: "Friedrichshain-Kreuzberg", lat: 52.5079, lng: 13.4301, count: 1842, color: "high" },
+            { district: "Mitte", lat: 52.5200, lng: 13.4050, count: 1695, color: "high" },
+            { district: "Neukölln", lat: 52.4758, lng: 13.4368, count: 1456, color: "high" },
+            { district: "Charlottenburg-Wilmersdorf", lat: 52.4986, lng: 13.2998, count: 1180, color: "medium" },
+            { district: "Tempelhof-Schöneberg", lat: 52.4667, lng: 13.3833, count: 1098, color: "medium" },
+            { district: "Pankow", lat: 52.5684, lng: 13.4010, count: 1012, color: "medium" },
+            { district: "Lichtenberg", lat: 52.5313, lng: 13.4997, count: 866, color: "medium" },
+            { district: "Treptow-Köpenick", lat: 52.4459, lng: 13.5797, count: 788, color: "low" },
+            { district: "Spandau", lat: 52.5355, lng: 13.1978, count: 704, color: "low" },
+            { district: "Steglitz-Zehlendorf", lat: 52.4385, lng: 13.2583, count: 665, color: "low" },
+            { district: "Reinickendorf", lat: 52.5887, lng: 13.3113, count: 628, color: "low" },
+            { district: "Marzahn-Hellersdorf", lat: 52.5342, lng: 13.5992, count: 552, color: "low" }
+        ];
+
+        const map = L.map("map", { zoomControl: true }).setView([52.52, 13.405], 11);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+
+        const markers = new Map();
+        hotspots.forEach((item) => {
+            const icon = L.divIcon({
+                className: "custom-marker",
+                html: `<div class="marker-pin ${item.color}">${item.count >= 1000 ? Math.round(item.count / 100) / 10 + "k" : item.count}</div>`,
+                iconSize: [34, 34],
+                iconAnchor: [17, 17]
+            });
+            const marker = L.marker([item.lat, item.lng], { icon })
+                .bindPopup(`<p class="popup-title">${item.district}</p><span class="popup-value">${item.count.toLocaleString("de-DE")}</span><br><span class="popup-label">gemeldete Diebstähle</span>`);
+            marker.addTo(map);
+            markers.set(item.district, marker);
+        });
+
+        const districtList = document.getElementById("districtList");
+        function renderDistricts() {
+            districtList.innerHTML = "";
+            for (const item of hotspots) {
+                const button = document.createElement("button");
+                button.className = "district";
+                button.innerHTML = `<span>${item.district}</span><span class="district-count">${item.count}</span>`;
+                button.addEventListener("click", () => {
+                    document.querySelectorAll(".district").forEach(el => el.classList.remove("active"));
+                    button.classList.add("active");
+                    map.setView([item.lat, item.lng], 13);
+                    markers.get(item.district).openPopup();
+                });
+                districtList.appendChild(button);
+            }
+        }
+        renderDistricts();
+        document.getElementById("periodFilter").addEventListener("change", event => {
+            const factor = event.target.value === "quarter" ? 0.28 : event.target.value === "year" ? 0.82 : 1;
+            document.getElementById("totalCount").textContent = Math.round(12486 * factor).toLocaleString("de-DE");
+        });
+
+        window.addEventListener("resize", () => map.invalidateSize());
+    </script>
+</body>
+</html>
