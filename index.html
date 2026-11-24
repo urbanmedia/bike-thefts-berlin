@@ -218,25 +218,20 @@
 
         const markers = new Map();
         hotspots.forEach((item) => {
-            const icon = L.divIcon({
-                className: "custom-marker",
-                html: `<div class="marker-pin ${item.color}">${item.count >= 1000 ? Math.round(item.count / 100) / 10 + "k" : item.count}</div>`,
-                iconSize: [34, 34],
-                iconAnchor: [17, 17]
-            });
-            const marker = L.marker([item.lat, item.lng], { icon })
+            const marker = L.marker([item.lat, item.lng], { icon: markerIcon(item, item.count) })
                 .bindPopup(`<p class="popup-title">${item.district}</p><span class="popup-value">${item.count.toLocaleString("de-DE")}</span><br><span class="popup-label">gemeldete Diebstähle</span>`);
             marker.addTo(map);
             markers.set(item.district, marker);
         });
 
         const districtList = document.getElementById("districtList");
+        const districtButtons = new Map();
         function renderDistricts() {
             districtList.innerHTML = "";
             for (const item of hotspots) {
                 const button = document.createElement("button");
                 button.className = "district";
-                button.innerHTML = `<span>${item.district}</span><span class="district-count">${item.count}</span>`;
+                button.innerHTML = `<span>${item.district}</span><span class="district-count">${item.count.toLocaleString("de-DE")}</span>`;
                 button.addEventListener("click", () => {
                     document.querySelectorAll(".district").forEach(el => el.classList.remove("active"));
                     button.classList.add("active");
@@ -244,12 +239,37 @@
                     markers.get(item.district).openPopup();
                 });
                 districtList.appendChild(button);
+                districtButtons.set(item.district, button);
             }
         }
         renderDistricts();
+
+        function markerIcon(item, count) {
+            const label = count >= 1000 ? `${Math.round(count / 100) / 10}k` : count;
+            return L.divIcon({
+                className: "custom-marker",
+                html: `<div class="marker-pin ${item.color}">${label}</div>`,
+                iconSize: [34, 34],
+                iconAnchor: [17, 17]
+            });
+        }
+
+        function updatePeriod(period) {
+            const factor = period === "quarter" ? 0.28 : period === "year" ? 0.82 : 1;
+            let total = 0;
+            for (const item of hotspots) {
+                const count = Math.round(item.count * factor);
+                total += count;
+                const marker = markers.get(item.district);
+                marker.setIcon(markerIcon(item, count));
+                marker.setPopupContent(`<p class="popup-title">${item.district}</p><span class="popup-value">${count.toLocaleString("de-DE")}</span><br><span class="popup-label">gemeldete Diebstähle</span>`);
+                districtButtons.get(item.district).querySelector(".district-count").textContent = count.toLocaleString("de-DE");
+            }
+            document.getElementById("totalCount").textContent = total.toLocaleString("de-DE");
+        }
+
         document.getElementById("periodFilter").addEventListener("change", event => {
-            const factor = event.target.value === "quarter" ? 0.28 : event.target.value === "year" ? 0.82 : 1;
-            document.getElementById("totalCount").textContent = Math.round(12486 * factor).toLocaleString("de-DE");
+            updatePeriod(event.target.value);
         });
 
         window.addEventListener("resize", () => map.invalidateSize());
