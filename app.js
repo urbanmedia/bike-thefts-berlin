@@ -16,6 +16,7 @@ let areaFeatures = [];
 let maxCases = 0;
 let selectedAreaId = "";
 let geoLayer;
+let berlinBounds;
 
 function parseCsv(text) {
     const rows = [];
@@ -95,6 +96,28 @@ function setRegionOptions() {
         region.appendChild(option);
     }
     region.value = [...region.options].some(option => option.value === previous) ? previous : "";
+}
+
+function zoomToAreaFilters() {
+    const district = filterElements.districtFilter.value;
+    const region = filterElements.regionFilter.value;
+    if (!district && !region) {
+        if (berlinBounds) map.fitBounds(berlinBounds, { padding: [26, 26] });
+        return;
+    }
+
+    let bounds;
+    for (const feature of areaFeatures) {
+        const properties = feature.properties;
+        if ((district && properties.bez !== district) || (region && properties.bzr_id !== region)) continue;
+        const layer = areaById.get(properties.plr_id)?.layer;
+        if (!layer) continue;
+        if (bounds) bounds.extend(layer.getBounds());
+        else bounds = layer.getBounds();
+    }
+    if (bounds?.isValid()) {
+        map.fitBounds(bounds, { padding: [36, 36], maxZoom: region ? 13 : 12 });
+    }
 }
 
 function getColor(value) {
@@ -266,7 +289,8 @@ async function loadData() {
             layer.on("click", () => selectArea(p.plr_id));
         }
     }).addTo(map);
-    map.fitBounds(geoLayer.getBounds(), { padding: [26, 26] });
+    berlinBounds = geoLayer.getBounds();
+    map.fitBounds(berlinBounds, { padding: [26, 26] });
 
     const dates = incidents.map(row => row.date).sort();
     filterElements.dateFrom.value = dates[0];
@@ -293,6 +317,9 @@ for (const element of Object.values(filterElements)) {
     element.addEventListener("change", () => {
         if (element === filterElements.districtFilter) setRegionOptions();
         updateView();
+        if (element === filterElements.districtFilter || element === filterElements.regionFilter) {
+            zoomToAreaFilters();
+        }
     });
 }
 document.getElementById("resetFilters").addEventListener("click", () => {
@@ -301,6 +328,7 @@ document.getElementById("resetFilters").addEventListener("click", () => {
     for (const id of filterIds.slice(2)) filterElements[id].value = "";
     setRegionOptions();
     updateView();
+    zoomToAreaFilters();
 });
 window.addEventListener("resize", () => map.invalidateSize());
 loadData().catch(error => {
